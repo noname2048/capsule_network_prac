@@ -78,8 +78,8 @@ caps1_output = squash(caps1_raw, name="caps1_output")
 즉 8D한개마다 10개의 16D차원으로 변환되는 행렬이 존재해야 합니다. 그리고 이미지 한개마다 1152개의 8D벡터가 존재합니다. 주어진 식이 u1|1 = W11 * u1 이고, u1은 방금 계산된 squashing된 벡터, W11은 변환 행렬이므로, [16 * 1] = [16 * 8] * [8 * 1]입니다. 
 
 #### Efficient way to calculate DigitCaps
-![Wij](images/Ws.png)
-![Wij2](images/Ws2.png)
+<img alt="Wij" src="images/Ws.png" width="400"/>
+<img alt="Wij2" src="images/Ws2.png" width="400"/>
 
 이를 TF에서 효율적으로 계산하기 위해서는 위 그림과 같이 1152개를 동시에, 그리고 들어오는 데이터 수많큼 이 일을 반복할 수 있도록 지정하는 일입니다. 그러기 위해서는 u1 을 10개 복사하여, 10개의 u1에 대하여 각 숫자 10개 (16D)에 해당하는 결과 벡터를 계산 하도록 W를 작성합니다.그러므로 W의 shape는 [batch_size, 1152, 10, 16, 8] 가 됩니다. (이미지 하나당 1152개의 u에 대해서 10개의 숫자에 해당하는 8D를 16D로 바꾸는 변환행렬)
 
@@ -162,7 +162,7 @@ weighted_predictions = tf.multiply(
     name="weighted_predictions")
 ```
 
-![broadcast_example](images/broadcast.png)
+<img alt="broadcast_example" src="images/broadcast.png" width="400"/>
 
 broadcasting은 위 그림과 같이 만약 원소간 곱(행렬 곱과 다릅니다)을 행할 때, 차원이 comparative 하다면, 자동으로 원소를 복제하여 계산되는 약속입니다. 따라서 uj|i와 cij를 곱하는 과정이 비교가능한 차원에서 broadcasting을 이용해 자동으로 계산됩니다.
 
@@ -253,7 +253,7 @@ y_pred = tf.squeeze(y_proba_argmax, axis=[1,2], name="y_pred")
 y = tf.placeholder(shape=[None], dtype=tf.int64, name="y")
 ```
 
-#### is correct?
+#### Correct & Accuracy
 이제 training 단계에서는 y와 y_pred가 같은지 확인하여, correct를 체크하고, 이를 1과 0으로 cast한뒤 다 더하여 판단하는 accuracy 역시 계산합니다.
 
 ```python
@@ -311,7 +311,7 @@ margin_loss = tf.reduce_mean(
 #### Get reconstruction loss
 reconstruction loss를 계산하기 위해서는 논문의 figure2에 해당하는 구조가 필요합니다. training 중에는 y 라벨이 제공되기 때문에 y에게 one_hot을 사용한뒤 mask를 해서 구하면 되지만, test중에는 y라벨이 제공되지 않으므로 y_pred를 이용하도록 TF함수를 이용하여 mark_with_label이 True일 때는 y를, False일때는 y_pred를 사용할 수 있게 설정합니다. 사용하도록 정해진 대상은 reconstruction_target에 저장됩니다.
 
-![mark_label](images/layer_summary.png)
+<img alt="mark_label" src="images/layer_summary.png" width="600"/>
 
 ```python
 mask_with_labels = tf.placeholder_with_default(
