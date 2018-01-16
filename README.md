@@ -1,28 +1,37 @@
 # Capsule Network Implementation
+
 * This is implementation of [[Dynamic Routing Between Capsules]](https://arxiv.org/pdf/1710.09829.pdf)
 * Most of code and material are taken from [[ageron/handson-ml]](https://github.com/ageron/handson-ml/blob/master/extra_capsnets.ipynb) repository, so take a look if original data is needed.
 
-* 이 저장소는 CapsuleNets을 구현한 다른 저장소에 대해 공부하고 해석하기 위해 만들어 졌습니다. 
-* 대부분의 코드는 [[ageron/handson-ml]](https://github.com/ageron/handson-ml/blob/master/extra_capsnets.ipynb)에 있고, 해석을 위하여 다음 영상을 참조하였습니다. [(유투브)](https://www.youtube.com/watch?v=2Kawrd5szHE)
+* 이 저장소는 CapsuleNets을 구현한 코드를 분석하고 공부하기 위해 만들어졌습니다. 
+* 대부분의 코드는 [[ageron/handson-ml]](https://github.com/ageron/handson-ml/blob/master/extra_capsnets.ipynb)에서 가져왔으며, 해석을 위하여 다음 영상을 참조하였습니다. [(유투브)](https://www.youtube.com/watch?v=2Kawrd5szHE)
 
-### 코드 실행순서
+## Prerequisites
+* Tensorflow >= 1.2
+* python >= 3.5
+
+
+## 코드 실행순서
 코드 실행순서는 다음과 같습니다.
 1. hello : 텐서플로우 설치 확인
-2. mnist : 가동확인
+2. mnist : 가동확인 (데이터 다운로드 확인)
 3. net : 훈련 및 결과 확인
 
 
-### 전체적인네트워크 구성
+## 전체적인네트워크 구성
+
+online workflow를 이용하여 공부하면서 작성한 구현된 네트워크는 다음과 같습니다.
 ![net.png](images/net.png)
 
 ## 설명
 #### Input
-X는 placeholder를 통해 이미지를 받아들입니다. [None 28 28 1]로 생성되어져 있습니다.
-이후 (9*9 커널, 256개 필터, 1 stride, relu func 로 구성된) CNN을 통해서 [None 20 20 256]으로 전환됩니다.
+X는 placeholder를 통해 이미지를 받아들입니다. [None 28 28 1]로 입력부분을 생성합니다.
+이후 (9*9 커널, 256개 필터, 1 stride, relu func 로 구성된) CNN을 통해서 1차원적인 특징을 가지는 Convolution 곱을 통해 [None 20 20 256]으로 전환됩니다.
 
 ```python
 X = tf.placeholder(shape=[None, 28, 28, 1], dtype=tf.float32, name='X')
 
+# [None 20 20 256]
 conv1_params = {
     "filters": 256,
     "kernel_size": 9,
@@ -30,12 +39,11 @@ conv1_params = {
     "padding": "valid", # no padding
     "activation": tf.nn.relu,
 }
-# L1 [None 20 20 256]
 conv1 = tf.layers.conv2d(X, name="conv1", **conv1_params)
 ```
 
 #### Primary Caps
-다음은 CapsuleNet을 구성합니다. 전단계의 layer에서 다시 (9*9 커널, 2 stride, relu func으로 구성된) CNN을 이용하여 [None 6 6 256] 으로 형성된 이미지를 생성합니다. 이때, 256은 총 8개씩 32개의 묶음으로 구성될 수 있는데, 이는 8차원 벡터로 이루어진 6*6 영상이 32개이 있다는 것을 말합니다. 이들을 벡터로 묶고자, reshape를 하여 [None, 1152, 8]로 만듭니다.
+다음은 CapsuleNet을 구성합니다. 전단계의 layer에서 다시 (9*9 커널, 2 stride, relu func으로 구성된) CNN을 이용하여 [None 6 6 256] 으로 형성된 이미지를 생성합니다. 이때, 256은 총 8개씩 32개의 묶음으로 구성된 네트워크가 한데 묶였을때 나오는 숫자입니다. 이는 8차원 벡터로 이루어진 6x6 영상이 32개 있다는 것을 말합니다. 이들을 8차원에 해당하는 벡터로 묶어 계산하기 위해서 reshape를 하여 [None, 1152, 8]로 만듭니다.
 
 ```python
 caps1_n_maps = 32
@@ -49,7 +57,7 @@ conv2_params = {
     "padding": "valid",
     "activation": tf.nn.relu
 }
-# L2 [None 6 6 256]
+# [None 6 6 256]
 conv2 = tf.layers.conv2d(conv1, name="conv2", **conv2_params)
 
 caps1_raw = tf.reshape(conv2, [-1, caps1_n_caps, caps1_n_dims], name="caps1_raw")
@@ -67,11 +75,11 @@ def squash(s, axis=-1, epsilon=np.finfo(float).eps, name=None):
         unit_vector = s / safe_norm
         return squash_factor * unit_vector
 
-# T2 [None 1152 8]
+# [None 1152 8]
 caps1_output = squash(caps1_raw, name="caps1_output")
 ```
 
-여기에서 구현된 squash 함수에는 한가지 유의 점이 있습니다. 먼저 tf.square을 이용하여 각자의 원소를 제곱한뒤, reduce_sum을 이용하여 마지막 차원(axis = -1)(8차원)을 합하여 더합니다. 이후 epsilon을 더하여 주는데, 이는 벡터의 크기가 0일 경우, 논문에서 주어진 식(1)이 nan이 될 가능성이 있기 때문입니다.
+여기에서 구현된 squash 함수에는 한가지 유의점이 있습니다. 먼저 tf.square을 이용하여 각자의 원소를 제곱한뒤, reduce_sum을 이용하여 마지막 차원(axis = -1)(8차원)을 합하여 더합니다. 이후 epsilon을 더하여 주는데, 이는 벡터의 크기가 0일 경우, 논문에서 주어진 식(1)이 nan이 될 가능성이 있기 때문입니다.
 
 1152개의 8차원 벡터는, (6 * 6 * 32) 이제 다음 Capsule Network인 DigitCaps로 넘어가게 됩니다. DigitCaps는 10개의 숫자마다 16차원(16D)의 예측 벡터를 가지게 되는데요, 이 벡터의 크기(길이)는 곧 그 숫자의 존재 확률을 의미합니다. 이 를 위해서는 첫번째 캡슐(Pirymary)에서 나온 결과인 8D 벡터를 16D로 치환하는 8*16의 변환 행렬이 필요함을 의미합니다.
 
@@ -81,31 +89,31 @@ caps1_output = squash(caps1_raw, name="caps1_output")
 <img alt="Wij" src="images/Ws.png" width="400"/>
 <img alt="Wij2" src="images/Ws2.png" width="400"/>
 
-이를 TF에서 효율적으로 계산하기 위해서는 위 그림과 같이 1152개를 동시에, 그리고 들어오는 데이터 수많큼 이 일을 반복할 수 있도록 지정하는 일입니다. 그러기 위해서는 u1 을 10개 복사하여, 10개의 u1에 대하여 각 숫자 10개 (16D)에 해당하는 결과 벡터를 계산 하도록 W를 작성합니다.그러므로 W의 shape는 [batch_size, 1152, 10, 16, 8] 가 됩니다. (이미지 하나당 1152개의 u에 대해서 10개의 숫자에 해당하는 8D를 16D로 바꾸는 변환행렬)
+이를 TF에서 효율적으로 계산하기 위해서는 위 그림과 같이 1152개를 동시에, 그리고 들어오는 데이터 수많큼 이 일을 반복할 수 있도록 지정해야합니다. 그러기 위해서는 u1 을 10개 복사하여, 10개의 u1에 대하여 각 숫자 10개 (16D)에 해당하는 결과 벡터를  한꺼번에 계산 하도록 W를 작성합니다. 그러므로 W의 shape는 [batch_size, 1152, 10, 16, 8] 가 됩니다. (이미지 하나당 1152개의 u에 대해서 10개의 숫자에 해당하는 8D를 16D로 바꾸는 변환행렬)
 
 변환행렬을 작성하면, W_init을 통해 먼저 (1152, 10, 16, 8)에 해당하는 random 행렬을 만들고, W를 사용하여 이를 변수로 지정한뒤 tile을 이용하여 이미지 한개당 처리할 수 있도록 조정합니다.
 
 ```python
 init_sigma = 0.01
 
-# V1 [1, 1152, 10, 16, 8]
+# [1, 1152, 10, 16, 8]
 W_init = tf.random_normal(
     shape=(1, caps1_n_caps, caps2_n_caps, caps2_n_dims, caps1_n_dims),
     stddev=init_sigma,
     dtype=tf.float32,
     name="W_init")
-# L3 [1, 1152, 10, 16, 8]
+# [1, 1152, 10, 16, 8]
 W = tf.Variable(W_init, name="W")
 
-# [BatchSize(None), 1152, 10, 16, 8]
 batch_size = tf.shape(X)[0]
+# [BatchSize(None), 1152, 10, 16, 8]
 W_tiled = tf.tile(
     W,
     [batch_size, 1, 1, 1, 1],
     name="W_tiled")
 ```
 
-다음은 1차 캡슐에서 결과로 나온 [None, 1152, 8] 행렬을 이 변환행렬에 집어넣을 수 있도록 변환하는 것인데요, 먼저 두번의 차원 증폭을 통해서 [None 1152, 1, 8, 1] 로 작성한뒤 (변환행렬이 4D이므로, 입력값 역시 4D가 되어야 합니다.) 10개의 숫자에 대해 한번에 계산하므로, tile을 이용해 [None 1152, 10, 8, 1] 이 되도록 맞추어 줍니다.
+다음은 1차 캡슐에서 결과로 나온 [None, 1152, 8] 행렬을 변환행렬과 계산할 수 있는 형태로 변환하는 것입니다. 먼저 두번의 차원 증폭을 통해서 [None 1152, 1, 8, 1] 로 작성한뒤 (변환행렬이 4차원의 크기를 가지는 행렬이므로, 입력값 역시 4차원이 되어야 합니다.) 10개의 숫자에 대해 한번에 계산할 수 있도록 10배로 tiling 하여 [None 1152, 10, 8, 1] 이 되도록 맞추어 줍니다.
 
 ```python
 # [None, 1152, 8, 1]
@@ -127,7 +135,7 @@ caps1_output_tiled = tf.tile(
     name="caps1_output_tiled")
 ```
 
-이제 변환행렬 W와 1차 결과 u를 곱하게 되면 예측 결과가 8D차원 1개당 10개의 숫자에 대한 16D로 나오게 되는데, 이 결과는 곧 [None 1152, 10, 16, 1]가 의미하는 바와 같습니다.
+이제 변환행렬 W와 1차 결과 u를 곱하게 되면 예측 결과가 8D차원 1개당(총 1152개) 10개의 숫자에 대한 16D(벡터)로 나오게 되는데, 이 결과는 곧 [None 1152, 10, 16, 1]가 의미하는 바와 같습니다.
 
 ```python
 # [None, 1152, 10, 16, 1]
@@ -138,9 +146,9 @@ caps2_predicted = tf.matmul(
 ```
 
 #### Routing by agreement
-이제 다음결과는 sj로 여기에 softmax로 (논문에서 수식 3) 구해진 routing_weight(cij)을 곱한뒤 더하는 가중합과 같은데, 논문에서는 수식 (2)에 해당합니다. uj|i를 전 단계에서 구하였으므로, cij을 구해 더하면 가중합 sj가 나오게 됩니다.
+이제 다음으로 구해야하는 항목은 sj로, bij에서 softmax로 (논문에서 수식 3) 구한 routing_weight(cij)에 전단계 결과인 uj|i를 곱한뒤 더하는 가중합입니다. 논문에서는 수식 (2)에 해당합니다. uj|i를 전 단계에서 구하였으므로, cij을 구해 더하면 가중합 sj가 나오게 됩니다.
 
-bij는 처음에는 0으로 초기화 되므로, zeros를 이용해 [None 1152 10 1 1] 행렬을 만들고, softmax 과정을 거쳐서 cij 행렬을 만들어 앞서 uj|i가 계산된 행렬과 원소간 곱을 한뒤 더하는 것으로 한꺼번에 효율적으로 같이 계산될 수 있습니다. (j는 1에서 10까지, i는 1에서 1152까지) 이떄 주의할점은, 두번째 캡슐 네트워크의 결과인 uj|i는 분명 [None 1152, 10, 16, 1]인데, 어떻게 해서 원소곱을 할 수 있는지에 대해 생각해야 합니다. 이는 TF에서 제공되는 broadcasting이라는 효과 때문입니다.
+bij는 처음에는 0으로 초기화 되므로, zeros를 이용해 [None 1152 10 1 1] 행렬을 만들고, softmax 과정을 거쳐서 cij 행렬을 만들어 앞서 uj|i가 계산된 행렬과 원소간 곱을 한 뒤 더하는 것으로 한꺼번에 효율적으로 같이 계산할 수 있습니다. (j는 1에서 10까지, i는 1에서 1152까지) 이 때 주의할점은, 두번째 캡슐 네트워크의 결과인 uj|i는 분명 [None 1152, 10, 16, 1]인데, 어떻게 해서 원소곱을 할 수 있는지에 대해 생각해야 합니다.
 
 ```python
 # [None, 1152, 10, 1, 1]
@@ -164,9 +172,9 @@ weighted_predictions = tf.multiply(
 
 <img alt="broadcast_example" src="images/broadcast.png" width="400"/>
 
-broadcasting은 위 그림과 같이 만약 원소간 곱(행렬 곱과 다릅니다)을 행할 때, 차원이 comparative 하다면, 자동으로 원소를 복제하여 계산되는 약속입니다. 따라서 uj|i와 cij를 곱하는 과정이 비교가능한 차원에서 broadcasting을 이용해 자동으로 계산됩니다.
+ 이는 TF에서 제공되는 broadcasting 이라는 효과 때문입니다. broadcasting은 위 그림과 같이 만약 원소간 곱(행렬 곱과 다름)을 행할 때, 차원이 comparative(비교가능) 하다면, 자동으로 원소를 복제하여 계산되는 약속입니다. 따라서 uj|i와 cij를 곱하는 과정이 비교가능한 차원에서 broadcasting을 이용해 자동으로 계산됩니다.
 
-이제 cij와 uj|i의 곱을 reduce_sum과 squash를 통해 계산하면 vj가 나오게 됩니다. 그리고 라우팅 알고리즘에 의해 vj와 uj|i를 내적(scalar product)하여 agreement aij를 이끌어 낼 수 있는데, 이는 단순히 uji[None 1152 10 16 1]을 Transpose하여 vj와 행렬곱 하면 됩니다. 그러기 위하여 [None 1 10 16 1]로 나온 vj를 tile을 이용해 [None 1152 10 16 1]로 변환하는 과정이 추가됩니다. aij는 따라서 [None 1152 10 1 1]로 나오게 됩니다.
+이제 cij와 uj|i의 곱을 reduce_sum과 squash를 통해 계산하면 vj가 나오게 됩니다. 그리고 라우팅 알고리즘에 의해 vj와 uj|i를 내적(scalar product)하여 agreement (aij)를 이끌어 낼 수 있는데, 이는 단순히 uji [None 1152 10 16 1]을 Transpose하여 vj와 행렬곱 하면 됩니다. 그러기 위하여 [None 1 10 16 1]로 나온 vj를 tile을 이용해 [None 1152 10 16 1]로 변환하는 과정이 추가됩니다. 이후 aij는 [None 1152 10 1 1]로 나오게 됩니다.
 
 ```python
 # [None, 1, 10, 16, 1]
